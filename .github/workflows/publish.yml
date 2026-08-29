@@ -151,7 +151,7 @@ jobs:
       # and commit. It works only in CI over OIDC, which is why the manual bootstrap release
       # will carry none and every release after it will.
       - name: Stage the release for approval
-        run: npm stage publish --provenance --access public --tag ${{ steps.dist.outputs.tag }}
+        run: npm stage publish --provenance --access public --tag ${{ steps.dist.outputs.tag }} --loglevel verbose
 
       - name: Say what still has to happen
         run: |
