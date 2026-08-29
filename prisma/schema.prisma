@@ -1,0 +1,30 @@
+// A stand-in for a customer's Prisma-managed application, and nothing more.
+//
+// The SDK does not depend on Prisma and must never begin to: `OutboxWriter` is a structural
+// interface, and `fromPrisma` is four lines that adapt a Prisma transaction client to it.
+// Prisma is a devDependency here purely so that adapter is tested against the real client
+// rather than against a hand-made object with the same shape — a fake would only restate
+// `fromPrisma`'s implementation back to itself.
+//
+// Note what is NOT modelled: the outbox. `commitrail.outbox_events` is created by
+// OUTBOX_SCHEMA_SQL, which is what a customer applies, and Prisma knows nothing about it.
+// That is the real arrangement — the customer's ORM owns their tables, CommitRail's outbox
+// arrives as SQL — so the test sits on the same seam a customer does.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// The customer's own business table. One row written inside the same transaction as an
+/// event is the entire claim this SDK makes.
+model Widget {
+  id   String @id @db.Uuid
+  name String
+
+  @@map("sdk_widgets")
+}

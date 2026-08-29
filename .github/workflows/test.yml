@@ -1,0 +1,78 @@
+# The suite, plus the check the suite structurally cannot perform.
+#
+# Two jobs, and the split is deliberate rather than cosmetic. `test` runs vitest, which
+# resolves `commitrail` to src/ through a vitest alias — right for a test, and blind to every
+# packaging failure. `package` builds and then exercises the packed tarball. Running the
+# second inside the first would mean checking a `dist` the suite never built.
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # The producer half is a claim about PostgreSQL transactions. It can only be tested
+        # against PostgreSQL; a mock would test our imagination.
+        image: postgres:17
+        env:
+          POSTGRES_USER: commitrail
+          POSTGRES_PASSWORD: commitrail
+          POSTGRES_DB: commitrail_sdk_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://commitrail:commitrail@localhost:5432/commitrail_sdk_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm format:check
+
+      - run: pnpm typecheck
+
+      # db:setup reads OUTBOX_SCHEMA_SQL out of dist/, the same string a customer applies.
+      - run: pnpm build
+
+      - run: pnpm db:setup
+
+      - run: pnpm test
+
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Packs the real tarball and installs it into throwaway ESM, CommonJS and TypeScript
+      # projects. No database: this is about the artifact, not the protocol.
+      - run: pnpm verify:package

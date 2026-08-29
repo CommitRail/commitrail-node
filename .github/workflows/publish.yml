@@ -1,0 +1,149 @@
+# Release to npm. OIDC only, stage only.
+#
+# This workflow holds no credential and cannot be given one. `id-token: write` lets it prove
+# to npm that it is this repository running this file; npm exchanges that for a short-lived
+# credential scoped to the run. There is deliberately no NPM_TOKEN, not even a temporary one
+# for the first release — a token would work, and would then exist as something to remember
+# to revoke.
+#
+# It STAGES rather than publishes, and it does so by running a different command:
+# `npm stage publish`, never `npm publish`. Those are two commands, and a stage-only trusted
+# publisher does NOT silently turn the second into the first — it refuses it. Writing
+# `npm publish` here while calling the workflow stage-only would publish straight to `latest`.
+#
+# Staging matters because trusted publishing removes the stealable secret but not the
+# compromised workflow: anyone with write access to a public repository can add one of these.
+# Staged, the worst such a workflow can do is put a release in front of a human, who approves
+# it on npmjs.com with 2FA — staging itself never prompts for 2FA, approving does. npm calls
+# stage-only trusted publishing with tokens disallowed its maximum-security posture, and the
+# trusted publisher must therefore be configured to allow `npm stage publish` ONLY.
+#
+# The first ever publish of `commitrail` cannot come from here: npm requires a package to
+# exist before a trusted publisher can be configured against it, and nothing reserves a name
+# except publishing to it. That one release is manual, and steps 9-10 of the bootstrap
+# sequence then make a second manual publish something the registry refuses.
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+
+  # A tag is the routine trigger. This exists so a release can be re-attempted without
+  # inventing a tag, which otherwise tempts someone into publishing by hand.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tag to build from'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # Everything the ordinary suite does, on the exact ref being released. A release is not the
+  # place to discover the tests were red.
+  verify:
+    uses: ./.github/workflows/test.yml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The tag, never a branch head. The artifact on npm must be reproducible from a
+          # commit anybody can read.
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+
+      # 22.14.0 is a floor set by staged publishing, not by the SDK. `engines.node` in
+      # package.json stays at >=20 — that is what a CONSUMER needs to run this package, and
+      # raising it to match a release-tooling requirement would deny the SDK to every Node 20
+      # application for no reason.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      # setup-node ships whichever npm came with the Node build, which is below the floor.
+      - run: npm install --global npm@^11.15.0
+
+      - name: Refuse to release on tooling too old to stage
+        run: |
+          node --version
+          npm --version
+          node -e '
+            const [need, name] = [[22,14,0], "node"];
+            const got = process.versions.node.split(".").map(Number);
+            for (let i = 0; i < 3; i++) {
+              if (got[i] > need[i]) break;
+              if (got[i] < need[i]) {
+                console.error(`${name} ${process.versions.node} is below 22.14.0, which staged publishing requires`);
+                process.exit(1);
+              }
+            }
+          '
+          npm_version=$(npm --version)
+          # A too-old npm has no `stage` subcommand at all, so this would otherwise fail as
+          # "Unknown command" partway through a release rather than before it starts.
+          if [ "$(printf '%s\n' "11.15.0" "$npm_version" | sort -V | head -1)" != "11.15.0" ]; then
+            echo "npm $npm_version is below 11.15.0, which staged publishing requires"
+            exit 1
+          fi
+          echo "node $(node --version) / npm $npm_version — staging supported"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      # The last gate before the registry, against the tarball rather than the source.
+      - run: pnpm verify:package
+
+      - name: Refuse to publish a version the tag does not name
+        run: |
+          tag="${{ inputs.ref || github.ref_name }}"
+          pkg="v$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $tag does not match package version $pkg"
+            exit 1
+          fi
+          echo "tag and package agree on $pkg"
+
+      # A prerelease must never become what `npm install commitrail` resolves to.
+      #
+      # npm's default dist-tag is `latest`, so publishing 0.1.0-alpha.0 without saying otherwise
+      # would make a prerelease the version every new install gets — silently, and permanently for
+      # anyone who installed during the window. Derived from the version rather than passed in,
+      # because a release is not the moment to be typing a flag correctly.
+      - name: Decide the dist-tag from the version
+        id: dist
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          case "$version" in
+            *-*) tag=next ;;
+            *)   tag=latest ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "$version publishes to the '$tag' tag"
+
+      # `npm`, not pnpm: staging, provenance and trusted publishing are npm CLI features, and
+      # this is the one command we do not want an extra layer in front of.
+      #
+      # `stage publish` submits the release WITHOUT making it public. It becomes public only
+      # when a human approves it on npmjs.com with 2FA. This is not the same command as
+      # `npm publish`, and substituting one for the other is not a stylistic choice.
+      #
+      # --provenance records the verifiable link from this artifact back to the tag, workflow
+      # and commit. It works only in CI over OIDC, which is why the manual bootstrap release
+      # will carry none and every release after it will.
+      - name: Stage the release for approval
+        run: npm stage publish --provenance --access public --tag ${{ steps.dist.outputs.tag }}
+
+      - name: Say what still has to happen
+        run: |
+          echo "Staged, not published, for the '${{ steps.dist.outputs.tag }}' tag."
+          echo "Approve it at https://www.npmjs.com/package/commitrail with 2FA to make it public."

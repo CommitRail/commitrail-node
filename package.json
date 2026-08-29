@@ -1,0 +1,109 @@
+{
+  "name": "commitrail",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "description": "CommitRail SDK \u2014 prerelease.",
+  "license": "Apache-2.0",
+  "author": "Syrenox Systems Ltd",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CommitRail/commitrail-node.git"
+  },
+  "homepage": "https://github.com/CommitRail/commitrail-node#readme",
+  "bugs": {
+    "url": "https://github.com/CommitRail/commitrail-node/issues"
+  },
+  "keywords": [
+    "commitrail",
+    "outbox",
+    "transactional-outbox",
+    "webhooks",
+    "postgres",
+    "events"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "pnpm@10.18.3",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./postgres": {
+      "import": {
+        "types": "./dist/esm/postgres.d.ts",
+        "default": "./dist/esm/postgres.js"
+      },
+      "require": {
+        "types": "./dist/cjs/postgres.d.ts",
+        "default": "./dist/cjs/postgres.js"
+      }
+    },
+    "./webhooks": {
+      "import": {
+        "types": "./dist/esm/webhooks.d.ts",
+        "default": "./dist/esm/webhooks.js"
+      },
+      "require": {
+        "types": "./dist/cjs/webhooks.d.ts",
+        "default": "./dist/cjs/webhooks.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "postgres": [
+        "./dist/cjs/postgres.d.ts"
+      ],
+      "webhooks": [
+        "./dist/cjs/webhooks.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node scripts/stamp-module-type.mjs",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "db:setup": "node scripts/setup-test-database.mjs",
+    "verify:package": "pnpm clean && pnpm build && node scripts/verify-package.mjs",
+    "format": "prettier --write \"{src,tests,scripts}/**/*.{ts,mjs}\"",
+    "format:check": "prettier --check \"{src,tests,scripts}/**/*.{ts,mjs}\""
+  },
+  "devDependencies": {
+    "@prisma/adapter-pg": "^7.0.1",
+    "@prisma/client": "^7.0.1",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.15.6",
+    "pg": "^8.23.0",
+    "prettier": "^3.4.0",
+    "prisma": "^7.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

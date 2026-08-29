@@ -1,0 +1,151 @@
+{
+  "note": "Frozen. Both CommitRail implementations are tested against these; see docs/wire-protocol.md.",
+  "specVersion": "1",
+  "headers": {
+    "specVersion": "commitrail-spec-version",
+    "deliveryId": "commitrail-delivery-id",
+    "idempotencyKey": "commitrail-idempotency-key",
+    "attemptId": "commitrail-attempt-id",
+    "attemptNumber": "commitrail-attempt-number",
+    "eventId": "commitrail-event-id",
+    "eventType": "commitrail-event-type",
+    "timestamp": "commitrail-timestamp",
+    "signature": "commitrail-signature"
+  },
+  "subjectLimits": {
+    "maxPerEvent": 100,
+    "maxTypeLength": 200,
+    "maxIdLength": 500
+  },
+  "secrets": {
+    "current": "vector-secret-value-long-enough-ok",
+    "previous": "vector-previous-secret-long-enough"
+  },
+  "envelopes": [
+    {
+      "name": "minimal",
+      "input": {
+        "id": "evt_1",
+        "type": "order.created",
+        "version": 1,
+        "occurredAt": "2026-08-20T09:00:00.000Z",
+        "deliveryId": "5f6c1d2e-0000-4000-8000-0000000000aa",
+        "attempt": 1,
+        "data": "{\"orderId\":\"o-1\"}"
+      },
+      "body": "{\"specVersion\":\"1\",\"id\":\"evt_1\",\"type\":\"order.created\",\"version\":1,\"occurredAt\":\"2026-08-20T09:00:00.000Z\",\"delivery\":{\"id\":\"5f6c1d2e-0000-4000-8000-0000000000aa\",\"attempt\":1},\"data\":{\"orderId\":\"o-1\"}}",
+      "canonicalPayload": "1787000000.5f6c1d2e-0000-4000-8000-0000000000aa.{\"specVersion\":\"1\",\"id\":\"evt_1\",\"type\":\"order.created\",\"version\":1,\"occurredAt\":\"2026-08-20T09:00:00.000Z\",\"delivery\":{\"id\":\"5f6c1d2e-0000-4000-8000-0000000000aa\",\"attempt\":1},\"data\":{\"orderId\":\"o-1\"}}",
+      "signature": "fe7a24a925241724326418c07c0201791e2de01c3b278951fdf29f434884b7c6",
+      "signatureHeader": "t=1787000000,v1=fe7a24a925241724326418c07c0201791e2de01c3b278951fdf29f434884b7c6",
+      "rotatingSignatureHeader": "t=1787000000,v1=fe7a24a925241724326418c07c0201791e2de01c3b278951fdf29f434884b7c6,v1=726841902fa9f2166e704fee652663f613f848c532221b4e4c1a9df4c26142d7"
+    },
+    {
+      "name": "every optional member",
+      "input": {
+        "id": "evt_2",
+        "type": "payment.captured",
+        "version": 3,
+        "occurredAt": "2026-08-20T09:00:01.500Z",
+        "correlationId": "checkout_8471",
+        "causationId": "evt_1",
+        "subjects": [
+          {
+            "type": "payment",
+            "id": "pay_991"
+          },
+          {
+            "type": "order",
+            "id": "order_1264"
+          }
+        ],
+        "deliveryId": "5f6c1d2e-0000-4000-8000-0000000000aa",
+        "attempt": 2,
+        "data": "{\"amount\":1999}"
+      },
+      "body": "{\"specVersion\":\"1\",\"id\":\"evt_2\",\"type\":\"payment.captured\",\"version\":3,\"occurredAt\":\"2026-08-20T09:00:01.500Z\",\"correlationId\":\"checkout_8471\",\"causationId\":\"evt_1\",\"subjects\":[{\"type\":\"payment\",\"id\":\"pay_991\"},{\"type\":\"order\",\"id\":\"order_1264\"}],\"delivery\":{\"id\":\"5f6c1d2e-0000-4000-8000-0000000000aa\",\"attempt\":2},\"data\":{\"amount\":1999}}",
+      "canonicalPayload": "1787000000.5f6c1d2e-0000-4000-8000-0000000000aa.{\"specVersion\":\"1\",\"id\":\"evt_2\",\"type\":\"payment.captured\",\"version\":3,\"occurredAt\":\"2026-08-20T09:00:01.500Z\",\"correlationId\":\"checkout_8471\",\"causationId\":\"evt_1\",\"subjects\":[{\"type\":\"payment\",\"id\":\"pay_991\"},{\"type\":\"order\",\"id\":\"order_1264\"}],\"delivery\":{\"id\":\"5f6c1d2e-0000-4000-8000-0000000000aa\",\"attempt\":2},\"data\":{\"amount\":1999}}",
+      "signature": "44ab149b6f8b1c195efff59e9495c1807e4757dd6d459e26da761ae5a20208a1",
+      "signatureHeader": "t=1787000000,v1=44ab149b6f8b1c195efff59e9495c1807e4757dd6d459e26da761ae5a20208a1",
+      "rotatingSignatureHeader": "t=1787000000,v1=44ab149b6f8b1c195efff59e9495c1807e4757dd6d459e26da761ae5a20208a1,v1=cf8e6c615492ed7e18365d3b4b2baddeb6a79f8cd580544e2cb774e8d9639202"
+    },
+    {
+      "name": "a payload with an integer past 2^53",
+      "input": {
+        "id": "evt_3",
+        "type": "order.created",
+        "version": 1,
+        "occurredAt": "2026-08-20T09:00:02.000Z",
+        "deliveryId": "5f6c1d2e-0000-4000-8000-0000000000aa",
+        "attempt": 1,
+        "data": "{\"orderId\":12345678901234567890}"
+      },
+      "body": "{\"specVersion\":\"1\",\"id\":\"evt_3\",\"type\":\"order.created\",\"version\":1,\"occurredAt\":\"2026-08-20T09:00:02.000Z\",\"delivery\":{\"id\":\"5f6c1d2e-0000-4000-8000-0000000000aa\",\"attempt\":1},\"data\":{\"orderId\":12345678901234567890}}",
+      "canonicalPayload": "1787000000.5f6c1d2e-0000-4000-8000-0000000000aa.{\"specVersion\":\"1\",\"id\":\"evt_3\",\"type\":\"order.created\",\"version\":1,\"occurredAt\":\"2026-08-20T09:00:02.000Z\",\"delivery\":{\"id\":\"5f6c1d2e-0000-4000-8000-0000000000aa\",\"attempt\":1},\"data\":{\"orderId\":12345678901234567890}}",
+      "signature": "338b1c15806d8edf2446e0af3b81271dc04126b1ed301eee4591ad7931c7bbe3",
+      "signatureHeader": "t=1787000000,v1=338b1c15806d8edf2446e0af3b81271dc04126b1ed301eee4591ad7931c7bbe3",
+      "rotatingSignatureHeader": "t=1787000000,v1=338b1c15806d8edf2446e0af3b81271dc04126b1ed301eee4591ad7931c7bbe3,v1=e7a9dbd79573e949769adec52eb52d2e0e4b7bd7ef64c1238b4d0b636925f8d3"
+    }
+  ],
+  "timestamp": 1787000000,
+  "subjectNormalisation": [
+    {
+      "name": "none",
+      "output": null
+    },
+    {
+      "name": "empty array is none",
+      "input": [],
+      "output": null
+    },
+    {
+      "name": "exact duplicates drop, first-occurrence order holds",
+      "input": [
+        {
+          "type": "order",
+          "id": "o-1"
+        },
+        {
+          "type": "payment",
+          "id": "p-1"
+        },
+        {
+          "type": "order",
+          "id": "o-1"
+        }
+      ],
+      "output": [
+        {
+          "type": "order",
+          "id": "o-1"
+        },
+        {
+          "type": "payment",
+          "id": "p-1"
+        }
+      ]
+    },
+    {
+      "name": "a delimiter in the values does not collide",
+      "input": [
+        {
+          "type": "a",
+          "id": "bc"
+        },
+        {
+          "type": "ab",
+          "id": "c"
+        }
+      ],
+      "output": [
+        {
+          "type": "a",
+          "id": "bc"
+        },
+        {
+          "type": "ab",
+          "id": "c"
+        }
+      ]
+    }
+  ]
+}
