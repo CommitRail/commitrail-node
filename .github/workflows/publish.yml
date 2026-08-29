@@ -51,19 +51,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The tag, never a branch head. The artifact on npm must be reproducible from a
           # commit anybody can read.
           ref: ${{ inputs.ref || github.ref }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       # 22.14.0 is a floor set by staged publishing, not by the SDK. `engines.node` in
       # package.json stays at >=20 — that is what a CONSUMER needs to run this package, and
       # raising it to match a release-tooling requirement would deny the SDK to every Node 20
       # application for no reason.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.14.0'
           cache: pnpm
