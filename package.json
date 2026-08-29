@@ -1,7 +1,7 @@
 {
   "name": "commitrail",
-  "version": "0.1.0-alpha.0",
-  "description": "CommitRail SDK \u2014 prerelease.",
+  "version": "0.1.0-alpha.1",
+  "description": "CommitRail SDK — prerelease.",
   "license": "Apache-2.0",
   "author": "Syrenox Systems Ltd",
   "repository": {
