@@ -63,11 +63,21 @@ jobs:
       # package.json stays at >=20 — that is what a CONSUMER needs to run this package, and
       # raising it to match a release-tooling requirement would deny the SDK to every Node 20
       # application for no reason.
+      # NO `registry-url`, and that is the whole reason this works.
+      #
+      # `registry-url` makes setup-node write an .npmrc containing
+      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`. With no such variable set — and
+      # there is none, because trusted publishing does not use one — npm sends the unexpanded
+      # literal as a bearer token and the registry answers 401 "your authentication token seems
+      # to be invalid". It never reaches the OIDC exchange, because as far as it is concerned a
+      # credential was already configured.
+      #
+      # npm's own trusted-publishing example includes `registry-url`, which is how this was
+      # written in the first place. It cost one failed release to find.
       - uses: actions/setup-node@v7
         with:
           node-version: '22.14.0'
           cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
 
       # setup-node ships whichever npm came with the Node build, which is below the floor.
       - run: npm install --global npm@^11.15.0
