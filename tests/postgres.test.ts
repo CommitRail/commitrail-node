@@ -288,6 +288,45 @@ describe('outbox writing', () => {
     expect((await pool.query('SELECT * FROM sdk_widgets')).rowCount).toBe(0);
   });
 
+  describe('an ordering key', () => {
+    it('is refused when it names nothing, at the point of the mistake', async () => {
+      // The rail would hold such an event and report it, which is correct and is also the
+      // slowest possible way for a producer to find out. Throwing inside their transaction
+      // rolls it back where they wrote it.
+      await expect(
+        transaction(pool, async (tx) => tx.emit({ type: 'a', data: {}, orderingKey: '' })),
+      ).rejects.toThrow(/must name something/);
+
+      await expect(
+        transaction(pool, async (tx) => tx.emit({ type: 'a', data: {}, orderingKey: '   ' })),
+      ).rejects.toThrow(/must name something/);
+
+      expect(await outboxRows()).toHaveLength(0);
+    });
+
+    it('is refused when it is longer than a key may be', async () => {
+      await expect(
+        transaction(pool, async (tx) =>
+          tx.emit({ type: 'a', data: {}, orderingKey: 'k'.repeat(501) }),
+        ),
+      ).rejects.toThrow(/at most 500 characters/);
+    });
+
+    it('is written as given for a key that names something', async () => {
+      await transaction(pool, async (tx) =>
+        tx.emit({ type: 'a', data: {}, orderingKey: 'order:1264' }),
+      );
+
+      const { rows } = await pool.query<{ ordering_key: string | null }>(
+        'SELECT ordering_key FROM commitrail.outbox_events',
+      );
+
+      // As given, not normalised: the SDK refuses a key that names nothing and does not rewrite
+      // one that does.
+      expect(rows[0]?.ordering_key).toBe('order:1264');
+    });
+  });
+
   describe('a caller-supplied eventId', () => {
     const eventId = '77777777-7777-4777-8777-777777777777';
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha.3
+
+`emit` now refuses an ordering key that names nothing — empty or blank — and one longer than 500
+characters, and exports `MAX_ORDERING_KEY_LENGTH`. The rail already refused both and held the
+event, which is correct and is also the slowest way for a producer to find out; throwing inside
+your transaction rolls it back where the mistake was made.
+
+An empty key is not "no key". Omit `orderingKey` entirely for unordered events — an empty one is a
+lane named the empty string, and every event that made the same mistake would be serialised
+through it.
+
 ## 0.1.0-alpha.2
 
 Adds `orderingKey` to `emit`, and outbox schema version 5 which is the column it is written to.

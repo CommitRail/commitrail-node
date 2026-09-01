@@ -52,6 +52,10 @@ export interface EmitEvent<TData = unknown> {
    * The cost is head-of-line blocking, which is the point rather than a side effect: if one
    * delivery for a key cannot be made, the rest wait. That is what "in order" means when
    * something fails.
+   *
+   * Must name something: at most 500 characters, and not blank. Omit it for unordered events —
+   * an empty key is not "no key", it is a lane named the empty string, which would serialise
+   * every event that made the same mistake through one queue.
    */
   orderingKey?: string;
 
@@ -169,6 +173,14 @@ ALTER TABLE commitrail.outbox_events ADD COLUMN IF NOT EXISTS ordering_key TEXT;
 ];
 
 /** The newest schema this package knows how to write. */
+/**
+ * The longest ordering key CommitRail accepts.
+ *
+ * Exported so a producer building keys can check rather than guess. The server enforces the same
+ * bound — this is the half that tells you at the point of the mistake instead of afterwards.
+ */
+export const MAX_ORDERING_KEY_LENGTH = 500;
+
 export const OUTBOX_SCHEMA_VERSION = OUTBOX_MIGRATIONS[OUTBOX_MIGRATIONS.length - 1]!.version;
 
 /**
@@ -348,6 +360,20 @@ function affectedRows(result: unknown): number | undefined {
 export async function emit<TData>(writer: OutboxWriter, event: EmitEvent<TData>): Promise<string> {
   if (event.type.trim().length === 0) {
     throw new Error('an event must have a type');
+  }
+
+  if (event.orderingKey !== undefined) {
+    // Refused here rather than left to the server, because here is where the mistake is. The
+    // rail holds an event with a bad key and reports it in the console, which is correct and is
+    // also the slowest possible way for a producer to find out — a throw inside their own
+    // transaction rolls it back at the moment they wrote it.
+    if (event.orderingKey.trim().length === 0) {
+      throw new Error('an ordering key must name something; omit it entirely for unordered events');
+    }
+
+    if (event.orderingKey.length > MAX_ORDERING_KEY_LENGTH) {
+      throw new Error(`an ordering key may be at most ${MAX_ORDERING_KEY_LENGTH} characters`);
+    }
   }
 
   assertNotAPool(writer);
