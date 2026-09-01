@@ -36,6 +36,26 @@ export interface EmitEvent<TData = unknown> {
   causationId?: string;
 
   /**
+   * Which events must not overtake one another — `order:1264`, `user:${id}`, whatever names the
+   * thing whose sequence matters.
+   *
+   * Events sharing a key are delivered to a destination one at a time, in the order CommitRail
+   * accepted them, and a delivery that fails holds the ones behind it rather than letting them
+   * pass. Events with no key, which is most of them, are unaffected and keep being delivered
+   * concurrently.
+   *
+   * Ordering is asked for, never inferred. CommitRail has no view of your model, so a key
+   * guessed from a subject or a payload field would be us deciding what your ordering means.
+   * It is also not a subject: an event may concern several identities, or none, and still need
+   * ordering against exactly one of them.
+   *
+   * The cost is head-of-line blocking, which is the point rather than a side effect: if one
+   * delivery for a key cannot be made, the rest wait. That is what "in order" means when
+   * something fails.
+   */
+  orderingKey?: string;
+
+  /**
    * The business identities this event concerns — `{ type: 'order', id: 'order_1264' }`.
    *
    * Distinct from everything above: the event type says *what happened*, the correlation id
@@ -136,6 +156,16 @@ CREATE TABLE IF NOT EXISTS commitrail.outbox_schema (
 );
 `,
   },
+  {
+    version: 5,
+    sql: `
+-- Which events must not overtake one another. Null — which is most events — means unordered.
+--
+-- Appended rather than declared in the table above, so a fresh install and an upgraded one have
+-- the same column order rather than merely the same columns.
+ALTER TABLE commitrail.outbox_events ADD COLUMN IF NOT EXISTS ordering_key TEXT;
+`,
+  },
 ];
 
 /** The newest schema this package knows how to write. */
@@ -174,8 +204,9 @@ export const OUTBOX_SCHEMA_SQL = OUTBOX_MIGRATIONS.map((m) =>
 
 const INSERT = `
 INSERT INTO commitrail.outbox_events
-    (event_id, event_type, event_version, payload, occurred_at, correlation_id, causation_id, subjects)
-VALUES ($1::uuid, $2, $3, $4::jsonb, COALESCE($5::timestamptz, now()), $6, $7, $8::jsonb)
+    (event_id, event_type, event_version, payload, occurred_at, correlation_id, causation_id, subjects,
+     ordering_key)
+VALUES ($1::uuid, $2, $3, $4::jsonb, COALESCE($5::timestamptz, now()), $6, $7, $8::jsonb, $9)
 ON CONFLICT (event_id) DO NOTHING
 `;
 
@@ -185,18 +216,19 @@ ON CONFLICT (event_id) DO NOTHING
  * Every producer-controlled field participates, because every one of them changes what the event
  * means, where it routes, or how it is ordered:
  *
- *     event_type, event_version, payload, correlation_id, causation_id, subjects
+ *     event_type, event_version, payload, correlation_id, causation_id, subjects, ordering_key
  *     occurred_at — only when the caller supplied one; see below
  *
  * Database-assigned fields never participate: `source_sequence` and `transaction_id` are issued
  * per attempt and can never match, and comparing them would make every retry a conflict.
  *
  * **A new producer-controlled column must be added to `CONFLICTS` in the same change that adds
- * it to the schema.** An ordering key is already planned, and it is exactly the kind of field
- * that changes an event's meaning while being easy to forget here — a forgotten field makes two
- * genuinely different events compare equal, which turns this check back into the silent discard
- * it exists to remove. `tests/integration/sdk/postgres.test.ts` fails if a column appears in the
- * outbox that this comment has not accounted for, so the reminder is a test rather than a hope.
+ * it to the schema.** `ordering_key` is the first column added since that was written, and it is
+ * exactly what the warning described: two events under one id that differ only in which sequence
+ * they belong to are different events, and comparing equal would turn this check back into the
+ * silent discard it exists to remove. `tests/integration/sdk/postgres.test.ts` fails if a column
+ * appears in the outbox that this comment has not accounted for, so the reminder is a test rather
+ * than a hope.
  *
  * Comparison happens in PostgreSQL rather than in JavaScript: `jsonb` equality is semantic, so
  * key order and whitespace do not matter, and `IS DISTINCT FROM` gets NULL right without a
@@ -227,8 +259,9 @@ SELECT 1
 FROM commitrail.outbox_events e
 WHERE e.event_id = $1::uuid
   AND (
-    (e.event_type, e.event_version, e.payload, e.correlation_id, e.causation_id, e.subjects)
-      IS DISTINCT FROM ($2, $3::integer, $4::jsonb, $6, $7, $8::jsonb)
+    (e.event_type, e.event_version, e.payload, e.correlation_id, e.causation_id, e.subjects,
+     e.ordering_key)
+      IS DISTINCT FROM ($2, $3::integer, $4::jsonb, $6, $7, $8::jsonb, $9)
     OR ($5::timestamptz IS NOT NULL AND e.occurred_at IS DISTINCT FROM $5::timestamptz)
   )
 `;
@@ -335,6 +368,7 @@ export async function emit<TData>(writer: OutboxWriter, event: EmitEvent<TData>)
     event.correlationId ?? null,
     event.causationId ?? null,
     subjects === null ? null : JSON.stringify(subjects),
+    event.orderingKey ?? null,
   ];
 
   const inserted = affectedRows(await writer.query(INSERT, params));

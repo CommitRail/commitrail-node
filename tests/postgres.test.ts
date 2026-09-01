@@ -511,8 +511,9 @@ describe('outbox writing', () => {
 
   it('fails when the outbox grows a producer field the identity check does not know about', async () => {
     // A forgotten field makes two genuinely different events compare equal, which turns the
-    // conflict check back into the silent discard it exists to remove. An ordering key is
-    // already planned, so this will fire.
+    // conflict check back into the silent discard it exists to remove. An ordering key was
+    // planned when this was written and it fired on exactly that, which is the whole of what it
+    // was for — two events under one id belonging to different sequences are different events.
     const { rows } = await pool.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
        WHERE table_schema = 'commitrail' AND table_name = 'outbox_events'`,
@@ -526,6 +527,7 @@ describe('outbox writing', () => {
       'correlation_id',
       'causation_id',
       'subjects',
+      'ordering_key',
       // Compared only when the caller supplied one — it defaults to now().
       'occurred_at',
     ];
@@ -758,8 +760,9 @@ describe('outbox writing', () => {
 
   it('fails when the outbox grows a producer field the identity check does not know about', async () => {
     // A forgotten field makes two genuinely different events compare equal, which turns the
-    // conflict check back into the silent discard it exists to remove. An ordering key is
-    // already planned, so this will fire.
+    // conflict check back into the silent discard it exists to remove. An ordering key was
+    // planned when this was written and it fired on exactly that, which is the whole of what it
+    // was for — two events under one id belonging to different sequences are different events.
     const { rows } = await pool.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
        WHERE table_schema = 'commitrail' AND table_name = 'outbox_events'`,
@@ -773,6 +776,7 @@ describe('outbox writing', () => {
       'correlation_id',
       'causation_id',
       'subjects',
+      'ordering_key',
       // Compared only when the caller supplied one — it defaults to now().
       'occurred_at',
     ];
@@ -803,6 +807,7 @@ describe('outbox writing', () => {
       'event_type',
       'event_version',
       'occurred_at',
+      'ordering_key',
       'payload',
       'source_sequence',
       'subjects',
