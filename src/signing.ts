@@ -49,6 +49,26 @@ export function canonicalPayloadBytes(input: {
   ]);
 }
 
+/**
+ * The canonical string a *receipt probe's* signature covers.
+ *
+ * A receipt probe asks whether you already hold a delivery. It carries no body, so the obvious
+ * thing would have been to reuse `canonicalPayload` with an empty one — and that was rejected.
+ *
+ * **The two forms are domain-separated, and the separation is structural rather than
+ * conventional.** A delivery's canonical string begins with a timestamp, which is digits; this
+ * one begins with the literal `receipt.`, which the delivery form cannot produce for any input.
+ * So a signature captured from a delivery can never be presented as a probe, and a probe's can
+ * never be presented as a delivery — without anyone having to reason about whether a body could
+ * happen to equal some magic string.
+ *
+ * The rejected version would have rested that separation on delivery bodies never being empty:
+ * an invariant nothing enforces, held somewhere else entirely.
+ */
+export function canonicalReceipt(input: { timestamp: number; deliveryId: string }): string {
+  return `receipt.${input.timestamp}.${input.deliveryId}`;
+}
+
 export function sign(secret: string, canonical: string | Uint8Array): string {
   return createHmac('sha256', secret).update(canonical).digest('hex');
 }
@@ -113,6 +133,47 @@ export function verifySignatureHeader(input: {
     typeof input.body === 'string'
       ? canonicalPayload({ timestamp, deliveryId: input.deliveryId, body: input.body })
       : canonicalPayloadBytes({ timestamp, deliveryId: input.deliveryId, body: input.body }),
+  );
+
+  return parts
+    .filter((p) => p.startsWith('v1='))
+    .some((p) => equalsConstantTime(p.slice(3), expected));
+}
+
+/**
+ * Verify a receipt probe's signature header.
+ *
+ * Deliberately the same shape as `verifySignatureHeader` — same parsing, same strict `t=`, same
+ * inclusive tolerance, same "does one of these `v1=` parts match" so a rotation needs no version
+ * negotiation, same silence about parts it does not recognise so a future `v2=` can ship
+ * alongside. Only the canonical string differs.
+ */
+export function verifyReceiptSignatureHeader(input: {
+  header: string;
+  secret: string;
+  deliveryId: string;
+  toleranceSeconds?: number;
+  now?: number;
+}): boolean {
+  const tolerance = input.toleranceSeconds ?? 300;
+  const now = input.now ?? Math.floor(Date.now() / 1000);
+
+  const parts = input.header.split(',').map((p) => p.trim());
+  const timestampPart = parts.find((p) => p.startsWith('t='));
+
+  if (timestampPart === undefined) {
+    return false;
+  }
+
+  const timestamp = parseTimestamp(timestampPart.slice(2));
+
+  if (timestamp === undefined || Math.abs(now - timestamp) > tolerance) {
+    return false;
+  }
+
+  const expected = sign(
+    input.secret,
+    canonicalReceipt({ timestamp, deliveryId: input.deliveryId }),
   );
 
   return parts

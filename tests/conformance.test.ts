@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { verifySignatureHeader, SPEC_VERSION, HEADERS, SUBJECT_LIMITS } from 'commitrail';
+import {
+  verifyReceiptSignatureHeader,
+  verifySignatureHeader,
+  SPEC_VERSION,
+  HEADERS,
+  SUBJECT_LIMITS,
+} from 'commitrail';
 import { normalizeSubjects } from 'commitrail/subjects';
 
 /**
@@ -33,6 +39,13 @@ describe('conformance to the frozen protocol vectors', () => {
       name: string;
       input: { deliveryId: string };
       body: string;
+      signatureHeader: string;
+      rotatingSignatureHeader: string;
+    }[];
+    receipts: {
+      name: string;
+      deliveryId: string;
+      canonicalReceipt: string;
       signatureHeader: string;
       rotatingSignatureHeader: string;
     }[];
@@ -88,6 +101,85 @@ describe('conformance to the frozen protocol vectors', () => {
           secret: vectors.secrets.current,
           deliveryId: v.input.deliveryId,
           body: `${v.body} `,
+          now: vectors.timestamp,
+        }),
+      ).toBe(false);
+    },
+  );
+
+  it.each(vectors.receipts.map((v) => [v.name, v] as const))(
+    'accepts the receipt probe CommitRail sends: %s',
+    (_name, v) => {
+      expect(
+        verifyReceiptSignatureHeader({
+          header: v.signatureHeader,
+          secret: vectors.secrets.current,
+          deliveryId: v.deliveryId,
+          now: vectors.timestamp,
+        }),
+      ).toBe(true);
+    },
+  );
+
+  it.each(vectors.receipts.map((v) => [v.name, v] as const))(
+    'accepts either secret mid-rotation on a receipt probe: %s',
+    (_name, v) => {
+      for (const secret of [vectors.secrets.current, vectors.secrets.previous]) {
+        expect(
+          verifyReceiptSignatureHeader({
+            header: v.rotatingSignatureHeader,
+            secret,
+            deliveryId: v.deliveryId,
+            now: vectors.timestamp,
+          }),
+        ).toBe(true);
+      }
+    },
+  );
+
+  /**
+   * The domain separation, checked as a property rather than described.
+   *
+   * A receipt probe is signed over `receipt.<t>.<id>` and a delivery over `<t>.<id>.<body>`. The
+   * delivery form begins with digits and cannot produce the `receipt.` prefix for any input, so
+   * neither signature can ever be presented as the other. Asserting it here means the claim
+   * survives somebody "simplifying" one of the two canonical strings.
+   */
+  it.each(vectors.receipts.map((v) => [v.name, v] as const))(
+    'will not accept a receipt signature as a delivery, or the reverse: %s',
+    (_name, v) => {
+      expect(
+        verifySignatureHeader({
+          header: v.signatureHeader,
+          secret: vectors.secrets.current,
+          deliveryId: v.deliveryId,
+          // An empty body — the shape the rejected design would have signed.
+          body: '',
+          now: vectors.timestamp,
+        }),
+      ).toBe(false);
+
+      const delivery = vectors.envelopes[0]!;
+
+      expect(
+        verifyReceiptSignatureHeader({
+          header: delivery.signatureHeader,
+          secret: vectors.secrets.current,
+          deliveryId: delivery.input.deliveryId,
+          now: vectors.timestamp,
+        }),
+      ).toBe(false);
+    },
+  );
+
+  it.each(vectors.receipts.map((v) => [v.name, v] as const))(
+    'will not answer for a different delivery than the one signed for: %s',
+    (_name, v) => {
+      expect(
+        verifyReceiptSignatureHeader({
+          header: v.signatureHeader,
+          secret: vectors.secrets.current,
+          deliveryId: `${v.deliveryId}-x`,
           now: vectors.timestamp,
         }),
       ).toBe(false);

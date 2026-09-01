@@ -86,6 +86,24 @@
       "rotatingSignatureHeader": "t=1787000000,v1=338b1c15806d8edf2446e0af3b81271dc04126b1ed301eee4591ad7931c7bbe3,v1=e7a9dbd79573e949769adec52eb52d2e0e4b7bd7ef64c1238b4d0b636925f8d3"
     }
   ],
+  "receipts": [
+    {
+      "name": "a receipt probe",
+      "deliveryId": "5f6c1d2e-0000-4000-8000-0000000000aa",
+      "canonicalReceipt": "receipt.1787000000.5f6c1d2e-0000-4000-8000-0000000000aa",
+      "signature": "9644e43a57251c7db83babf048434d2ee05efb71795a64d2f8a83d11b8c57531",
+      "signatureHeader": "t=1787000000,v1=9644e43a57251c7db83babf048434d2ee05efb71795a64d2f8a83d11b8c57531",
+      "rotatingSignatureHeader": "t=1787000000,v1=9644e43a57251c7db83babf048434d2ee05efb71795a64d2f8a83d11b8c57531,v1=65c243bb8e2e6ce0047d2dd5b344b997f858e30e83a9bc79ca114d91e5036aa5"
+    },
+    {
+      "name": "a different delivery, same instant",
+      "deliveryId": "5f6c1d2e-0000-4000-8000-0000000000bb",
+      "canonicalReceipt": "receipt.1787000000.5f6c1d2e-0000-4000-8000-0000000000bb",
+      "signature": "aaa370580d4e6ea60f7862a5e6e6d904b6364a602e8425a2c0b76048c0e22965",
+      "signatureHeader": "t=1787000000,v1=aaa370580d4e6ea60f7862a5e6e6d904b6364a602e8425a2c0b76048c0e22965",
+      "rotatingSignatureHeader": "t=1787000000,v1=aaa370580d4e6ea60f7862a5e6e6d904b6364a602e8425a2c0b76048c0e22965,v1=f7b9e8c8fbf829818ece9ced0b7e13439293b48b7d13ba34b90362bcda09d3e9"
+    }
+  ],
   "timestamp": 1787000000,
   "subjectNormalisation": [
     {

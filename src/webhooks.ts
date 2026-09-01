@@ -1,5 +1,5 @@
 import { HEADERS, type CommitRailEvent } from './envelope.js';
-import { verifySignatureHeader } from './signing.js';
+import { verifyReceiptSignatureHeader, verifySignatureHeader } from './signing.js';
 
 /** Registered globally by description, so every copy of this package agrees on it. */
 const BRAND = Symbol.for('commitrail.InvalidDeliveryError');
@@ -196,6 +196,98 @@ export function verifyRequest<TData = unknown>(input: VerifyRequestInput): Commi
   assertHeadersAgree(input.headers, event, signature);
 
   return event;
+}
+
+export interface VerifyReceiptInput {
+  /** Request headers, however your framework exposes them. Case-insensitive. */
+  headers: Record<string, string | string[] | undefined>;
+
+  /**
+   * The delivery id you are about to answer about — **from your route, not from the headers.**
+   *
+   * This is the parameter that makes the check mean something. The signature covers a delivery
+   * id, and what you must verify is that it covers *the one you are going to look up*. Reading
+   * the id out of the headers and verifying against that would confirm only that the two headers
+   * agree with each other, while your handler answered about the path.
+   */
+  deliveryId: string;
+
+  secret: string;
+
+  /** How much clock skew to tolerate, in seconds. Defaults to five minutes. */
+  toleranceSeconds?: number;
+}
+
+/**
+ * Verify a receipt probe: CommitRail asking whether you already hold a delivery.
+ *
+ * Throws rather than returning false, so a handler that forgets to check still fails closed.
+ *
+ * ```ts
+ * app.get('/commitrail/receipts/:deliveryId', async (request, reply) => {
+ *   verifyReceipt({
+ *     headers: request.headers,
+ *     deliveryId: request.params.deliveryId,
+ *     secret: process.env.COMMITRAIL_SIGNING_SECRET!,
+ *   });
+ *
+ *   return (await alreadyProcessed(request.params.deliveryId))
+ *     ? reply.code(200).send()
+ *     : reply.code(404).send();
+ * });
+ * ```
+ *
+ * **200 means you have it; 404 means you do not; anything else means you could not say.**
+ * CommitRail acts on a 200 by recording the delivery as met and giving up on retrying it — so
+ * answer from what you have actually committed, never from what is in progress.
+ *
+ * **This endpoint must stay cheap.** You are asked precisely when your main handler is too slow
+ * to answer, so one that redoes the work will time out too and help nobody. It is a lookup on
+ * the same key you already deduplicate on.
+ *
+ * **Verifying is not optional.** Without it, anyone who can reach this route can learn which
+ * delivery ids you hold by asking.
+ */
+export function verifyReceipt(input: VerifyReceiptInput): void {
+  const signature = header(input.headers, HEADERS.signature);
+
+  if (signature === undefined) {
+    throw new InvalidDeliveryError('missing_signature', 'no signature header');
+  }
+
+  const tolerance = input.toleranceSeconds ?? DEFAULT_TOLERANCE_SECONDS;
+  const timestamp = signedTimestamp(signature);
+
+  if (timestamp === undefined) {
+    throw new InvalidDeliveryError('malformed_signature', 'signature did not verify');
+  }
+
+  if (Math.abs(Math.floor(Date.now() / 1000) - timestamp) > tolerance) {
+    throw new InvalidDeliveryError('timestamp_out_of_range', 'signature did not verify');
+  }
+
+  // The header is checked against the route's id rather than trusted in its place. A probe whose
+  // header names one delivery and whose path names another is not something CommitRail sends,
+  // and answering it would mean confirming a delivery nobody signed for.
+  const declared = header(input.headers, HEADERS.deliveryId);
+
+  if (declared !== undefined && declared !== input.deliveryId) {
+    throw new InvalidDeliveryError(
+      'header_mismatch',
+      'delivery id header does not match the one being asked about',
+    );
+  }
+
+  if (
+    !verifyReceiptSignatureHeader({
+      header: signature,
+      secret: input.secret,
+      deliveryId: input.deliveryId,
+      toleranceSeconds: tolerance,
+    })
+  ) {
+    throw new InvalidDeliveryError('signature_mismatch', 'signature did not verify');
+  }
 }
 
 function header(

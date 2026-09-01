@@ -17,4 +17,4 @@
  */
 export { SPEC_VERSION, HEADERS, type CommitRailEvent } from './envelope.js';
 export { InvalidSubjectsError, SUBJECT_LIMITS, type EventSubject } from './subjects.js';
-export { verifySignatureHeader } from './signing.js';
+export { verifySignatureHeader, verifyReceiptSignatureHeader } from './signing.js';
