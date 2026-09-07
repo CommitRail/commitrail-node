@@ -1,5 +1,5 @@
 {
-  "note": "Frozen. Both CommitRail implementations are tested against these; see docs/wire-protocol.md.",
+  "note": "Frozen. Both CommitRail implementations are tested against these; append cases, never regenerate.",
   "specVersion": "1",
   "headers": {
     "specVersion": "commitrail-spec-version",

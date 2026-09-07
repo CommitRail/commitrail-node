@@ -20,9 +20,7 @@ export interface EventSubject {
 
 /**
  * Sized so normal business modelling never meets them; they exist to stop pathological
- * usage, not to ration subjects. The evidence behind each number — measured throughput,
- * storage and lookup curves, and what still needs re-measuring at production scale —
- * is docs/benchmarks/event-subjects-limits.md; change them there first.
+ * usage, not to ration subjects.
  */
 export const SUBJECT_LIMITS = {
   maxPerEvent: 100,
@@ -62,8 +60,8 @@ export class InvalidSubjectsError extends Error {
  * code path — with first-occurrence order preserved. Anything malformed throws: a subject
  * that cannot be represented is an error at the boundary, never a silent truncation.
  *
- * Takes `unknown` because the acceptance side re-validates whatever a producer actually
- * wrote to the outbox, which no type annotation can vouch for.
+ * Takes `unknown` because the value is re-validated wherever it is read back, and no type
+ * annotation can vouch for what was actually written.
  */
 export function normalizeSubjects(subjects: unknown): EventSubject[] | null {
   if (subjects === undefined || subjects === null) {

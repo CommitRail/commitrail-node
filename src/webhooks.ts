@@ -327,9 +327,9 @@ function header(
  *
  * **Only a header that is present and disagrees is rejected.** An absent one is fine, and that is
  * deliberate: CommitRail must stay free to stop sending a convenience header without every
- * deployed verifier refusing the delivery. This is the same reasoning as `verifyRequest` never
- * reading `specVersion` to decide anything — comparing two things CommitRail sent is not the same
- * as requiring a particular version, and it must not quietly become that.
+ * verifier already installed refusing the delivery. Checking two things CommitRail sent against
+ * each other is not the same as requiring a particular version, which is why `verifyRequest`
+ * never reads `specVersion` to decide anything.
  *
  * `commitrail-attempt-id` is the one header with nothing in the envelope to check it against. It
  * stays unauthenticated; do not make a decision on it.

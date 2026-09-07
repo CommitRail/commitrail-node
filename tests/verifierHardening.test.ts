@@ -9,7 +9,7 @@ import { signatureHeader, sign, canonicalPayload } from 'commitrail/signing';
  *
  * The conformance vectors pin the happy path: given this event and this secret, these bytes. They
  * say almost nothing about malformed input, and malformed input is where an independently written
- * verifier — the Go one somebody builds from PROTOCOL.md — is most likely to diverge from this
+ * verifier — the Go one somebody builds independently — is most likely to diverge from this
  * one. So every case here is also a statement the specification has to make.
  *
  * The rule throughout: **anything not exactly right is rejected**, and rejection is the only

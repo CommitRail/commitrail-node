@@ -64,7 +64,7 @@ describe('outbox writing', () => {
   it('carries a correlation and a causation when the caller supplies them', async () => {
     // Customer-supplied and nothing else. CommitRail never infers a correlation from timing
     // or payload similarity — chronological proximity is not causation, and a timeline drawn
-    // from a guess is worse than no timeline. See docs/discussions/web-ui-design-ideas.md.
+    // from a guess is worse than no timeline.
     const eventId = await transaction(pool, async (tx) =>
       tx.emit({
         type: 'order.created',

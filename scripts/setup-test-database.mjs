@@ -14,9 +14,8 @@ import { fileURLToPath } from 'node:url';
 /**
  * Read `.env` if there is one, the same way vitest.config.ts does.
  *
- * Without this, `pnpm test` works from a `.env` and `pnpm db:setup` does not — which is the
- * exact order CONTRIBUTING.md tells a newcomer to run them in, so the first thing they would
- * meet is a setup step failing on a file the next step reads happily.
+ * Without this, `pnpm test` works from a `.env` and `pnpm db:setup` does not — so the first
+ * thing a newcomer meets is a setup step failing on a file the next step reads happily.
  *
  * A real environment always wins: CI sets DATABASE_URL directly and has no `.env`.
  */

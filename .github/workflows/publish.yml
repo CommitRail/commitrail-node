@@ -18,10 +18,10 @@
 # stage-only trusted publishing with tokens disallowed its maximum-security posture, and the
 # trusted publisher must therefore be configured to allow `npm stage publish` ONLY.
 #
-# The first ever publish of `commitrail` cannot come from here: npm requires a package to
+# The first ever publish of `commitrail` could not come from here: npm requires a package to
 # exist before a trusted publisher can be configured against it, and nothing reserves a name
-# except publishing to it. That one release is manual, and steps 9-10 of the bootstrap
-# sequence then make a second manual publish something the registry refuses.
+# except publishing to it. That one release was manual; the trusted publisher configured
+# afterwards is what makes a second manual publish something the registry refuses.
 name: publish
 
 on:
@@ -59,10 +59,9 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      # 22.14.0 is a floor set by staged publishing, not by the SDK. `engines.node` in
-      # package.json stays at >=20 — that is what a CONSUMER needs to run this package, and
-      # raising it to match a release-tooling requirement would deny the SDK to every Node 20
-      # application for no reason.
+      # 22.14.0 is a floor set by staged publishing, not by the SDK, and it pins the release
+      # runner only. `engines.node` in package.json is what a CONSUMER needs to run this
+      # package, and must never be raised to match a release-tooling requirement.
       # NO `registry-url`, and that is the whole reason this works.
       #
       # `registry-url` makes setup-node write an .npmrc containing

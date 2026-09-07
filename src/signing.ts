@@ -14,9 +14,7 @@ export interface SigningMaterial {
 /**
  * The canonical string a signature covers.
  *
- * Consumers reimplement this, so its exact shape matters far less than documenting it
- * precisely — but it must include the delivery id, so that a captured body cannot be
- * replayed as a different obligation.
+ * It includes the delivery id, so a captured body cannot be replayed as a different obligation.
  */
 export function canonicalPayload(input: {
   timestamp: number;
@@ -34,9 +32,8 @@ export function canonicalPayload(input: {
  * to do something the contract does not need, and `.toString()` with a forgotten or wrong
  * encoding is a real way to break verification for reasons nobody can see.
  *
- * Returns `Uint8Array` rather than `Buffer` deliberately: a `Buffer` in a published `.d.ts` makes
- * `@types/node` a requirement to compile against this package, which a library has no business
- * imposing. The packaging gate caught that, which is what it is for.
+ * Returns `Uint8Array` rather than `Buffer`, so that compiling against this package does not
+ * require `@types/node`.
  */
 export function canonicalPayloadBytes(input: {
   timestamp: number;
@@ -52,18 +49,12 @@ export function canonicalPayloadBytes(input: {
 /**
  * The canonical string a *receipt probe's* signature covers.
  *
- * A receipt probe asks whether you already hold a delivery. It carries no body, so the obvious
- * thing would have been to reuse `canonicalPayload` with an empty one — and that was rejected.
+ * A receipt probe asks whether you already hold a delivery, and carries no body.
  *
- * **The two forms are domain-separated, and the separation is structural rather than
- * conventional.** A delivery's canonical string begins with a timestamp, which is digits; this
- * one begins with the literal `receipt.`, which the delivery form cannot produce for any input.
- * So a signature captured from a delivery can never be presented as a probe, and a probe's can
- * never be presented as a delivery — without anyone having to reason about whether a body could
- * happen to equal some magic string.
- *
- * The rejected version would have rested that separation on delivery bodies never being empty:
- * an invariant nothing enforces, held somewhere else entirely.
+ * **The two forms are domain-separated structurally.** A delivery's canonical string begins with
+ * a timestamp, which is digits; this one begins with the literal `receipt.`, which the delivery
+ * form cannot produce for any input. So a signature captured from a delivery can never be
+ * presented as a probe, and a probe's can never be presented as a delivery.
  */
 export function canonicalReceipt(input: { timestamp: number; deliveryId: string }): string {
   return `receipt.${input.timestamp}.${input.deliveryId}`;
@@ -96,10 +87,7 @@ export function signatureHeader(input: {
   return [`t=${input.timestamp}`, ...signatures].join(',');
 }
 
-/**
- * Verify a header the way a consumer would. Exists so the contract we publish is the one
- * we test against, rather than a description of it.
- */
+/** Verify a signature header: the timestamp is in tolerance and one `v1=` part matches. */
 export function verifySignatureHeader(input: {
   header: string;
   secret: string;
@@ -143,10 +131,9 @@ export function verifySignatureHeader(input: {
 /**
  * Verify a receipt probe's signature header.
  *
- * Deliberately the same shape as `verifySignatureHeader` — same parsing, same strict `t=`, same
- * inclusive tolerance, same "does one of these `v1=` parts match" so a rotation needs no version
- * negotiation, same silence about parts it does not recognise so a future `v2=` can ship
- * alongside. Only the canonical string differs.
+ * The same shape as `verifySignatureHeader` — same strict `t=`, same inclusive tolerance, same
+ * "does one of these `v1=` parts match", same silence about parts it does not recognise. Only
+ * the canonical string differs.
  */
 export function verifyReceiptSignatureHeader(input: {
   header: string;
@@ -194,11 +181,10 @@ function equalsConstantTime(a: string, b: string): boolean {
  * The `t=` value, parsed strictly.
  *
  * `Number.parseInt` is lenient: it reads `1787000000.5` and `1787000000junk` as 1787000000, so
- * three different header strings would verify against one signature. Harmless on its own — the
- * signature is computed over the parsed integer, so nothing about the body or the window changes
- * — but it is a divergence, and divergence is the thing this protocol cannot afford. A verifier
- * written from PROTOCOL.md with a strict integer parse would reject what this one accepts, and
- * the customer would meet the difference in production.
+ * three different header strings would verify against one signature. The signature is computed
+ * over the parsed integer, so nothing about the body or the window changes — but an independently
+ * written verifier with a strict parse would reject what this one accepts, and two verifiers
+ * disagreeing about one header is the difference nobody can see.
  *
  * Digits only. A negative timestamp is refused here rather than by the tolerance check, which
  * makes the rule one sentence instead of two.

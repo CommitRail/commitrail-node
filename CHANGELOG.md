@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha.4
+
+Editorial. The doc comments carried into the published type declarations were rewritten to
+describe only this package's own surface; the runtime is byte-for-byte what `0.1.0-alpha.3`
+shipped.
+
 ## 0.1.0-alpha.3
 
 Adds `verifyReceipt` to `commitrail/webhooks`, for the receipt endpoint CommitRail asks before it

@@ -168,7 +168,7 @@ describe('request signing', () => {
    * p.startsWith('v1='))` reads like an implementation detail, and tightening it to reject
    * unknown parts would look like hardening a loose parser. It would in fact remove the only
    * path by which the signature scheme can ever change without breaking every deployed
-   * consumer at once. See `docs/sdk-distribution-design.md`.
+   * consumer at once.
    */
   describe('tolerating a scheme it has not seen', () => {
     it('verifies v1 even when a future scheme rides along', () => {

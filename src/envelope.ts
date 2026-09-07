@@ -1,11 +1,4 @@
-/**
- * The wire contract.
- *
- * This package is the single definition of it. CommitRail signs and sends using exactly
- * what customers import to receive and verify, so the two cannot drift — the same reason
- * the control plane serialises through its route schemas rather than describing them
- * separately.
- */
+/** The wire contract: the envelope CommitRail sends, and the bytes a signature covers. */
 import type { EventSubject } from './subjects.js';
 
 export const SPEC_VERSION = '1';
@@ -77,15 +70,13 @@ export const HEADERS = {
 /**
  * Serialise the wire envelope.
  *
- * Built by hand rather than with `JSON.stringify` on an object, for one reason: `data` is
- * the customer's payload as PostgreSQL rendered it, and it must be spliced in as text.
- * Parsing it to put it in an object would run it through `JSON.parse`, which is float64 and
- * silently rewrites any integer past 2^53 — an order id of 12345678901234567890 came back
- * as 12345678901234567000. See docs/defects.md.
+ * `data` is spliced in as JSON text rather than parsed and re-serialised: `JSON.parse` is
+ * float64 and silently rewrites any integer past 2^53, so an id of 12345678901234567890 would
+ * become 12345678901234567000. Every other member goes through `JSON.stringify`, which is what
+ * escapes it.
  *
- * Every other member still goes through `JSON.stringify`, which is what escapes them. The
- * field order is fixed and visible on purpose: these bytes are what gets signed, so the
- * order is part of the contract rather than an implementation detail of an object literal.
+ * The field order is fixed and written out rather than left to an object literal, because these
+ * bytes are what gets signed.
  */
 export function serialiseEnvelope(input: {
   id: string;
@@ -114,10 +105,9 @@ export function serialiseEnvelope(input: {
     `"occurredAt":${JSON.stringify(input.occurredAt)},` +
     optional('correlationId', input.correlationId) +
     optional('causationId', input.causationId) +
-    // A new member is added to the fixed order, never inserted into it: envelopes without
-    // subjects keep exactly the bytes they have always had, which is what lets deployed
-    // verifiers stay deployed. `JSON.stringify` of the array is safe — subjects are strings
-    // by contract, so there is no float64 hazard here, unlike `data`.
+    // Appended to the fixed order rather than inserted into it, so an envelope without subjects
+    // keeps the bytes it had. `JSON.stringify` is safe here — subjects are strings by contract,
+    // so there is no float64 hazard, unlike `data`.
     (input.subjects === null || input.subjects === undefined || input.subjects.length === 0
       ? ''
       : `"subjects":${JSON.stringify(input.subjects)},`) +

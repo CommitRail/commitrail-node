@@ -74,15 +74,12 @@ export interface EmitEvent<TData = unknown> {
 /**
  * The outbox schema, as an append-only list of migrations.
  *
- * A list rather than one script, because the alternative already caused a problem. A single
- * converge-to-latest constant changes when the package changes, so a customer who pasted it
- * into `001_add_commitrail.sql` finds that migration meaning something different a year later
- * — which is the one thing migrations exist not to do. Pinning a version instead gives them an
- * immutable statement of what they applied.
+ * A list rather than one script. A single converge-to-latest constant changes when the package
+ * changes, so a copy pasted into `001_add_commitrail.sql` would mean something different a year
+ * later — which is the one thing migrations exist not to do. Pinning a version gives you an
+ * immutable statement of what you applied.
  *
- * **Every entry here is frozen once released.** A released migration has run against databases
- * we do not own and cannot re-run; editing one changes what a version *means* while leaving
- * every already-migrated database untouched. Fix a mistake by appending, never by amending.
+ * **Every entry is frozen once released**, so a version you have applied cannot change under you.
  *
  * Each is written to be safely re-runnable — `IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS` — so
  * applying the whole list to any database converges it, whatever it started from.
@@ -234,17 +231,8 @@ ON CONFLICT (event_id) DO NOTHING
  * Database-assigned fields never participate: `source_sequence` and `transaction_id` are issued
  * per attempt and can never match, and comparing them would make every retry a conflict.
  *
- * **A new producer-controlled column must be added to `CONFLICTS` in the same change that adds
- * it to the schema.** `ordering_key` is the first column added since that was written, and it is
- * exactly what the warning described: two events under one id that differ only in which sequence
- * they belong to are different events, and comparing equal would turn this check back into the
- * silent discard it exists to remove. `tests/integration/sdk/postgres.test.ts` fails if a column
- * appears in the outbox that this comment has not accounted for, so the reminder is a test rather
- * than a hope.
- *
- * Comparison happens in PostgreSQL rather than in JavaScript: `jsonb` equality is semantic, so
- * key order and whitespace do not matter, and `IS DISTINCT FROM` gets NULL right without a
- * special case. Inventing JSON equality rules in JS would mean inventing them twice.
+ * The comparison happens in PostgreSQL, so `jsonb` equality is semantic: key order and
+ * whitespace do not matter.
  */
 
 /**
@@ -292,9 +280,7 @@ WHERE e.event_id = $1::uuid
  * Note what a throw does not do: it does not poison the PostgreSQL transaction by itself. A
  * caller managing `BEGIN`/`COMMIT` themselves can catch this and commit anyway, and would then
  * have committed business state describing an event that was never written. There is no way for
- * an SDK to prevent that; enforcing it against every writer would mean putting the rule in the
- * customer's database, which is a schema-versioning cost not worth paying yet. Catching this and
- * continuing is almost certainly wrong.
+ * an SDK to prevent it. Catching this and continuing is almost certainly wrong.
  */
 export class EventIdConflictError extends Error {
   static readonly brand = CONFLICTING_EVENT_BRAND;
@@ -345,8 +331,8 @@ function affectedRows(result: unknown): number | undefined {
  * That is the entire point, and the only thing that can go wrong here. Pass a transaction
  * and the event commits with your business state or not at all. Pass a pool — which also
  * has `.query` — and you have written the event on a separate connection, which is the
- * dual write CommitRail exists to eliminate. Nothing at runtime can tell the two apart, so
- * prefer `transaction()` below, which does not give you the chance.
+ * dual write CommitRail exists to eliminate. Prefer `transaction()` below, which does not give
+ * you the chance.
  *
  * If you already manage transactions yourself, call `emit` on your transaction-scoped client.
  * The example is deliberately not a `BEGIN`/`COMMIT` pair: written short it has no rollback
@@ -363,10 +349,8 @@ export async function emit<TData>(writer: OutboxWriter, event: EmitEvent<TData>)
   }
 
   if (event.orderingKey !== undefined) {
-    // Refused here rather than left to the server, because here is where the mistake is. The
-    // rail holds an event with a bad key and reports it in the console, which is correct and is
-    // also the slowest possible way for a producer to find out — a throw inside their own
-    // transaction rolls it back at the moment they wrote it.
+    // Refused here rather than left to the server, because here is where the mistake is: a
+    // throw inside your transaction rolls it back at the moment the key was written.
     if (event.orderingKey.trim().length === 0) {
       throw new Error('an ordering key must name something; omit it entirely for unordered events');
     }
@@ -434,13 +418,10 @@ export async function emit<TData>(writer: OutboxWriter, event: EmitEvent<TData>)
  * transaction. That is the dual write CommitRail exists to eliminate, produced by code that
  * looks correct and behaves correctly until the day a transaction rolls back.
  *
- * The documentation used to say nothing at runtime could tell the two apart. That is true of the
- * interface and false of the object: a `pg` Pool carries `totalCount`, `idleCount` and
- * `waitingCount`, and a client carries none of them. Checking is cheap, catches the exact
- * documented footgun, and cannot produce a false positive on a transaction client.
- *
- * A driver this does not recognise is passed through, so the guard only ever adds safety. It is
- * not a substitute for `transaction()`, which removes the choice instead of policing it.
+ * A `pg` Pool carries `totalCount`, `idleCount` and `waitingCount`; a transaction client carries
+ * none of them, so the check cannot produce a false positive. A driver it does not recognise is
+ * passed through, so the guard only ever adds safety — it is not a substitute for
+ * `transaction()`, which removes the choice instead of policing it.
  */
 function assertNotAPool(writer: OutboxWriter): void {
   const pool = writer as { totalCount?: unknown; idleCount?: unknown; waitingCount?: unknown };
