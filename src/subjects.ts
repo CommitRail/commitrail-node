@@ -28,10 +28,17 @@ export const SUBJECT_LIMITS = {
   maxIdLength: 500,
 } as const;
 
-/** Registered globally by description, so every copy of this package agrees on it. */
+/** Registered globally, so every copy of this package recognises a brand set by another. */
 const BRAND = Symbol.for('commitrail.InvalidSubjectsError');
 
-/** Branded like `InvalidDeliveryError`, and for the same dual-package reason. */
+/**
+ * Thrown when a subjects value is malformed.
+ *
+ * Catch it with `InvalidSubjectsError.is(error)` rather than `instanceof`. This package ships both
+ * ESM and CommonJS, so an application that reaches it both ways holds two copies and two distinct
+ * classes — and `instanceof` is **false** across them, for an error that is exactly what it looks
+ * like. The brand is registered globally, so `is()` recognises either.
+ */
 export class InvalidSubjectsError extends Error {
   static readonly brand = BRAND;
 

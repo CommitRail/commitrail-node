@@ -1,7 +1,7 @@
 import { HEADERS, type CommitRailEvent } from './envelope.js';
 import { verifyReceiptSignatureHeader, verifySignatureHeader } from './signing.js';
 
-/** Registered globally by description, so every copy of this package agrees on it. */
+/** Registered globally, so a brand set by one copy of this package is recognised by another. */
 const BRAND = Symbol.for('commitrail.InvalidDeliveryError');
 
 /**

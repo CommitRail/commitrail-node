@@ -33,9 +33,10 @@ export interface CommitRailEvent<TData = unknown> {
   /**
    * The business identities the producer declared this event concerns.
    *
-   * Absent when none were declared, for the same reason as the members above — and never
-   * inferred: these are exactly what the producer wrote, so a consumer can route or index
-   * on them with the same trust the producer's own code would get.
+   * Absent when none were declared, rather than present and empty — an absent member says the
+   * producer declared none more clearly than an empty array does. Never inferred: these are
+   * exactly what the producer wrote, so a consumer can route or index on them with the same trust
+   * the producer's own code would get.
    */
   subjects?: EventSubject[];
 
@@ -88,7 +89,12 @@ export function serialiseEnvelope(input: {
   subjects?: EventSubject[] | null;
   deliveryId: string;
   attempt: number;
-  /** JSON text. Never a parsed value — see the note above. */
+  /**
+   * The event payload, already serialised.
+   *
+   * JSON text and never a parsed value: it is spliced into the envelope as given, because
+   * reparsing would round any integer past 2^53 through float64 and silently change it.
+   */
   data: string;
 }): string {
   // Omitted rather than sent as null, so the envelope keeps the shape it has always had for
