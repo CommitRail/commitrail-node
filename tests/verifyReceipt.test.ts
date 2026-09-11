@@ -164,8 +164,8 @@ describe('verifyReceipt', () => {
    *
    * The two canonical forms are domain-separated structurally: a delivery's begins with a
    * timestamp, which is digits, and cannot produce the `receipt.` prefix for any body. Signing a
-   * probe as a delivery-with-an-empty-body was the rejected design, and this is what makes the
-   * rejection hold rather than depend on bodies never being empty.
+   * probe as a delivery with an empty body is the alternative this form rules out, and it is what
+   * makes the rejection hold rather than depend on bodies never being empty.
    */
   it('refuses a delivery signature presented as a probe', () => {
     const at = Math.floor(Date.now() / 1000);

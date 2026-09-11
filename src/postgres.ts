@@ -62,9 +62,9 @@ export interface EmitEvent<TData = unknown> {
   /**
    * The business identities this event concerns — `{ type: 'order', id: 'order_1264' }`.
    *
-   * Distinct from everything above: the event type says *what happened*, the correlation id
-   * says *which operation it belongs to*, the causation id says *what caused it* — subjects
-   * say *what it was about*. Declare every relevant identity; CommitRail indexes them so an
+   * A distinct thing from the event's other identifiers: the event type says *what happened*,
+   * `correlationId` says *which operation it belongs to*, `causationId` says *what caused it* —
+   * subjects say *what it was about*. Declare every relevant identity; CommitRail indexes them so an
    * investigation can start from an order or customer id rather than an event id. Exact
    * duplicates are dropped; order carries no meaning.
    */
@@ -124,8 +124,8 @@ CREATE INDEX IF NOT EXISTS outbox_events_capture_idx
 -- when the event declares none. CommitRail normalises these into its own indexed table at
 -- acceptance; they are never queried in the outbox.
 --
--- Appended rather than declared in the table above, so that a fresh install and an upgraded
--- one have the same column order rather than merely the same columns.
+-- Added by this migration rather than declared in the original CREATE TABLE, so that a fresh
+-- install and an upgraded one have the same column order and not merely the same columns.
 ALTER TABLE commitrail.outbox_events ADD COLUMN IF NOT EXISTS subjects JSONB;
 `,
   },
@@ -162,8 +162,8 @@ CREATE TABLE IF NOT EXISTS commitrail.outbox_schema (
     sql: `
 -- Which events must not overtake one another. Null — which is most events — means unordered.
 --
--- Appended rather than declared in the table above, so a fresh install and an upgraded one have
--- the same column order rather than merely the same columns.
+-- Added by this migration rather than declared in the original CREATE TABLE, so a fresh install
+-- and an upgraded one have the same column order and not merely the same columns.
 ALTER TABLE commitrail.outbox_events ADD COLUMN IF NOT EXISTS ordering_key TEXT;
 `,
   },
@@ -226,7 +226,7 @@ ON CONFLICT (event_id) DO NOTHING
  * means, where it routes, or how it is ordered:
  *
  *     event_type, event_version, payload, correlation_id, causation_id, subjects, ordering_key
- *     occurred_at — only when the caller supplied one; see below
+ *     occurred_at — only when the caller supplied one, since a default differs per row
  *
  * Database-assigned fields never participate: `source_sequence` and `transaction_id` are issued
  * per attempt and can never match, and comparing them would make every retry a conflict.
@@ -331,8 +331,8 @@ function affectedRows(result: unknown): number | undefined {
  * That is the entire point, and the only thing that can go wrong here. Pass a transaction
  * and the event commits with your business state or not at all. Pass a pool — which also
  * has `.query` — and you have written the event on a separate connection, which is the
- * dual write CommitRail exists to eliminate. Prefer `transaction()` below, which does not give
- * you the chance.
+ * dual write CommitRail exists to eliminate. `transaction()` does not give you the chance, and is
+ * the shape to reach for unless you already manage transactions yourself.
  *
  * If you already manage transactions yourself, call `emit` on your transaction-scoped client.
  * The example is deliberately not a `BEGIN`/`COMMIT` pair: written short it has no rollback
@@ -492,9 +492,10 @@ export async function transaction<T>(
 /**
  * Adapt a Prisma transaction client.
  *
- * Typed structurally so this package does not depend on Prisma. Uses `$executeRawUnsafe`
- * because the SQL is a constant defined above and the values are parameterised — the
- * "unsafe" in the name refers to interpolating the statement, which never happens here.
+ * Typed structurally so this package does not depend on Prisma. Uses `$executeRawUnsafe` because
+ * the statement is a constant inside this package and every value is passed as a parameter — the
+ * "unsafe" in that method's name refers to interpolating the statement text, which never happens
+ * here.
  */
 export function fromPrisma(tx: {
   $executeRawUnsafe(sql: string, ...values: unknown[]): Promise<number>;

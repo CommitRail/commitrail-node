@@ -7,7 +7,7 @@ import { signatureHeader, sign, canonicalPayload } from 'commitrail/signing';
  * Adversarial input to the verifier, which is the thing standing between a webhook endpoint and
  * anyone who can guess its URL.
  *
- * The conformance vectors pin the happy path: given this event and this secret, these bytes. They
+ * The frozen test vectors pin the happy path: given this event and this secret, these bytes. They
  * say almost nothing about malformed input, and malformed input is where an independently written
  * verifier — the Go one somebody builds independently — is most likely to diverge from this
  * one. So every case here is also a statement the specification has to make.

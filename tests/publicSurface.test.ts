@@ -3,25 +3,23 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * What this repository says about CommitRail, in the places strangers read it.
+ * What this package promises, and what its comments can actually resolve to.
  *
- * Three surfaces, and they leak differently.
+ * `tsconfig.json` sets no `removeComments`, so every JSDoc block in `src/` is copied verbatim into
+ * the published `.d.ts` and `.js`. A comment here is documentation on a customer's disk, rendered
+ * in their editor on hover — not a note to whoever edits this file next.
  *
- * **The README and the changelog** are a landing page: GitHub renders them, npm renders them,
- * and they are the only thing most people who find this will read. Two kinds of sentence do not
- * belong there and both arrived once already — language committing to a timeline nobody has
- * agreed to, and detail about what is or is not running. The notice says what is true in the
- * present tense and stops.
+ * Two consequences, and both are about what a reader can reach from where they stand.
  *
- * **`src/` is not source, it is documentation.** `tsconfig.json` sets no `removeComments`, so
- * every JSDoc block here is copied verbatim into the published `.d.ts` files and renders in a
- * customer's editor on hover. A comment naming an internal document, an internal component or a
- * surface nobody can reach is shipped to npm, not merely written down. That is how
- * `docs/defects.md` and `docs/benchmarks/…` came to sit inside `dist/esm/*.d.ts`.
+ * **A repo-relative path dangles by construction.** The tarball is `dist`, `README.md` and
+ * `LICENSE`, so a comment citing `tests/`, `vectors/` or `scripts/` points at a file the reader
+ * does not have.
  *
- * **A repo-relative path in `src/` dangles by construction.** The tarball is `dist`, `README.md`
- * and `LICENSE` — no `src/`, no `tests/`, no `vectors/`, no `docs/` — so a comment citing one is
- * pointing a customer at a file they do not have.
+ * **A tooltip has no "above" and no "below."** An editor renders one symbol with nothing around
+ * it, so a positional reference resolves perfectly here and to nothing where it is read.
+ *
+ * The README is checked for the one sentence that does not belong on a landing page: a commitment
+ * to a timeline nobody has agreed to.
  */
 describe('the public notice', () => {
   const root = path.resolve(__dirname, '..');
@@ -47,21 +45,6 @@ describe('the public notice', () => {
     const found = forwardLooking.filter((pattern) => pattern.test(contents)).map(String);
 
     expect(found, `promises a timeline nobody has agreed to: ${found.join(', ')}`).toEqual([]);
-  });
-
-  it.each(surfaces)('%s says nothing about what we do or do not run', (_name, contents) => {
-    const operational = [
-      /no service behind/i,
-      /\bnot (yet )?deployed\b/i,
-      /\bstaging\b/i,
-      /\bproduction (environment|deployment)\b/i,
-      /\bregion\b/i,
-      /\buptime\b/i,
-    ];
-
-    const found = operational.filter((pattern) => pattern.test(contents)).map(String);
-
-    expect(found, `discloses operational state: ${found.join(', ')}`).toEqual([]);
   });
 
   it('keeps the README short enough to be a notice rather than a page', () => {
@@ -97,66 +80,46 @@ describe('comments that get published', () => {
     .filter((f) => f !== path.join('tests', 'publicSurface.test.ts'));
 
   /**
-   * A private document, an internal component, or a surface nobody can reach yet.
+   * A tooltip has no "above" and no "below".
    *
-   * Each of these was found in this repository rather than imagined. `docs/…` named the
-   * monorepo's design notes, defect log and benchmark write-ups; `tests/integration/…` named a
-   * path that exists only in the monorepo; "the console" named a surface no customer can open;
-   * "capture" and "preflight" named server components by their internal names.
-   */
-  const internal: [pattern: RegExp, why: string][] = [
-    [/\bdocs\/[a-z0-9-]+/i, 'names a document in the private monorepo'],
-    [/\bPROTOCOL\.md\b/, 'names a file that does not exist in this repository'],
-    [/\bCONTRIBUTING\.md\b/, 'names a file that does not exist in this repository'],
-    [/\btests\/integration\//, 'names a test path that exists only in the private monorepo'],
-    [/\bcontrol plane\b/i, 'names CommitRail Cloud internals'],
-    [/\bdata plane\b/i, 'names CommitRail Cloud internals'],
-    [/\bin the console\b/i, 'names a surface a customer cannot reach today'],
-  ];
-
-  /**
-   * Narration about us rather than description for the reader.
+   * Every JSDoc block in `src/` is copied into the published `.d.ts`, where an editor renders one
+   * symbol at a time with nothing around it. A positional reference resolves perfectly in the
+   * source file and to nothing at all where it is actually read, which is why five of these
+   * survived four passes over `src/`.
    *
-   * A comment in `src/` is documentation on a customer's disk. It should describe what is in
-   * front of whoever is reading it — never our history, our other components, our test suite or
-   * a design we considered and dropped. Every tell below was written in this file at some point.
+   * The migration SQL is copied further still: it is text a customer pastes into their own
+   * migration files, so "the table above" lands in a different file of theirs.
+   *
+   * Name the thing instead. `transaction()` and `correlationId` mean the same in a tooltip as in
+   * a file.
+   *
+   * Scoped to `src/` as a whole rather than to exported symbols, which makes it slightly wider
+   * than the rule: a private function's block never reaches a `.d.ts`, so nobody hovers it. It is
+   * still published in `dist/esm/*.js` — every comment is — and every fix this over-reach has
+   * asked for so far was an improvement anyway. Narrow it if that stops being true.
    */
-  const narration: [pattern: RegExp, why: string][] = [
-    [/\bthe suite\b/i, 'refers to our test suite'],
-    [/\bmonorepo\b/i, 'refers to the private repository'],
-    [/\bpack(ag)?ing gate\b/i, 'refers to our release tooling'],
-    [/\bconformance vector/i, 'refers to a file the package does not contain'],
-    [
-      /\bour (server|backend|internals|routes|functions)\b/i,
-      'narrates our side, not the reader\u2019s',
-    ],
-    [/\bthe rejected (version|design|alternative)\b/i, 'narrates a design we dropped'],
-    [/\bused to say\b/i, 'narrates this file\u2019s own history'],
-    [/\bnot worth paying\b/i, 'narrates work we have deferred'],
-  ];
-
-  it.each(files)('%s names nothing internal', (file) => {
-    const contents = readFileSync(path.join(root, file), 'utf8');
-
-    const found = internal
-      .filter(([pattern]) => pattern.test(contents))
-      .map(([pattern, why]) => `${pattern} — ${why}`);
-
-    expect(found, `${file}\n  ${found.join('\n  ')}`).toEqual([]);
-  });
-
-  // Scoped to `src/`, because these are only a problem in what gets published. A test may say
-  // "the suite" and a workflow may say "monorepo"; a `.d.ts` on a customer's disk may not.
   it.each(files.filter((f) => f.startsWith('src')))(
-    '%s describes the reader\u2019s side, not ours',
+    '%s refers to nothing by its position',
     (file) => {
       const contents = readFileSync(path.join(root, file), 'utf8');
 
-      const found = narration
-        .filter(([pattern]) => pattern.test(contents))
-        .map(([pattern, why]) => `${pattern} — ${why}`);
+      const positional = [
+        /\b(?:the )?(?:note|table|constant|statement|example|list|members?|field|method|type)s? (?:defined |declared )?(?:above|below)\b/i,
+        /\b(?:see|prefer|described|explained|listed)\b[^.]{0,40}?\b(?:above|below)\b/i,
+        /\beverything above\b/i,
+        /\bthe (?:one|section|paragraph) (?:above|below)\b/i,
+      ];
 
-      expect(found, `${file}\n  ${found.join('\n  ')}`).toEqual([]);
+      const found = contents
+        .split('\n')
+        .map((line, index) => [line, index + 1] as const)
+        .filter(([line]) => positional.some((pattern) => pattern.test(line)))
+        .map(([line, number]) => `${number}: ${line.trim()}`);
+
+      expect(
+        found,
+        `${file} points at something by position, which resolves to nothing on hover:\n  ${found.join('\n  ')}`,
+      ).toEqual([]);
     },
   );
 

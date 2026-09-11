@@ -15,8 +15,8 @@ import { normalizeSubjects } from 'commitrail/subjects';
  *
  * CommitRail's backend implements the same wire protocol from its own private code and imports
  * nothing from this package — deliberately, because a published SDK should be shaped by what
- * customers need rather than by what our servers need, and because a Go or Python verifier could
- * never have shared our functions anyway.
+ * customers need rather than by what any one implementation needs, and because a verifier written
+ * in Go or Python could never have shared this package's functions anyway.
  *
  * `vectors/protocol.json` is what holds the two together. It is frozen and **it is the
  * specification**: the exact bytes, canonical strings and signatures for a set of events.
@@ -153,7 +153,7 @@ describe('conformance to the frozen protocol vectors', () => {
           header: v.signatureHeader,
           secret: vectors.secrets.current,
           deliveryId: v.deliveryId,
-          // An empty body — the shape the rejected design would have signed.
+          // An empty body — the shape a probe would have if it reused the delivery form.
           body: '',
           now: vectors.timestamp,
         }),
