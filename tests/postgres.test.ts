@@ -6,6 +6,7 @@ import {
   OUTBOX_SCHEMA_SQL,
   fromPrisma,
   EventIdConflictError,
+  InvalidObligationsError,
 } from 'commitrail/postgres';
 import { InvalidSubjectsError } from 'commitrail';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -117,6 +118,42 @@ describe('outbox writing', () => {
     ]);
     // Null, not an empty array: "declared none" stored the same way for every producer.
     expect(await subjectsOf(without)).toBeNull();
+  });
+
+  it('writes the obligations the event named, deduplicated, and null when it named none', async () => {
+    const owing = await transaction(pool, async (tx) =>
+      tx.emit({
+        type: 'invoice.issued',
+        data: {},
+        obligations: ['record-in-ledger', 'send-to-customer', 'record-in-ledger'],
+      }),
+    );
+    const owingNothing = await transaction(pool, async (tx) =>
+      tx.emit({ type: 'order.created', data: {} }),
+    );
+
+    const obligationsOf = async (eventId: string) =>
+      (
+        await pool.query<{ obligations: string[] | null }>(
+          'SELECT obligations FROM commitrail.outbox_events WHERE event_id = $1',
+          [eventId],
+        )
+      ).rows[0]!.obligations;
+
+    expect(await obligationsOf(owing)).toEqual(['record-in-ledger', 'send-to-customer']);
+    // Null, not an empty array. An event that owed nothing and an event whose obligations were
+    // lost must not be stored the same way.
+    expect(await obligationsOf(owingNothing)).toBeNull();
+  });
+
+  it('rejects a malformed obligation inside the transaction that named it', async () => {
+    // Which is the point of validating here: the throw rolls back the business state that named
+    // it, rather than leaving a row a capture worker cannot accept hours later.
+    await expect(
+      transaction(pool, async (tx) =>
+        tx.emit({ type: 'invoice.issued', data: {}, obligations: ['  '] }),
+      ),
+    ).rejects.toThrow(InvalidObligationsError);
   });
 
   it('rejects malformed subjects before anything reaches the outbox', async () => {
@@ -567,6 +604,9 @@ describe('outbox writing', () => {
       'causation_id',
       'subjects',
       'ordering_key',
+      // Two events under one id that owe different things are different events — and this is the
+      // field where being wrong is worst, because the discarded one is a duty the business had.
+      'obligations',
       // Compared only when the caller supplied one — it defaults to now().
       'occurred_at',
     ];
@@ -816,6 +856,9 @@ describe('outbox writing', () => {
       'causation_id',
       'subjects',
       'ordering_key',
+      // Two events under one id that owe different things are different events — and this is the
+      // field where being wrong is worst, because the discarded one is a duty the business had.
+      'obligations',
       // Compared only when the caller supplied one — it defaults to now().
       'occurred_at',
     ];
@@ -845,6 +888,7 @@ describe('outbox writing', () => {
       'event_id',
       'event_type',
       'event_version',
+      'obligations',
       'occurred_at',
       'ordering_key',
       'payload',
@@ -853,5 +897,8 @@ describe('outbox writing', () => {
       'transaction_id',
     ]);
     expect(rows.find((r) => r.column_name === 'transaction_id')?.data_type).toBe('xid8');
+    // An array of names rather than JSON. Capture reads it straight into a string list, and a
+    // person querying the table can use it without unwrapping anything.
+    expect(rows.find((r) => r.column_name === 'obligations')?.data_type).toBe('ARRAY');
   });
 });
