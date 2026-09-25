@@ -1,6 +1,18 @@
 # Changelog
 
+## 0.1.0-alpha.6
+
+**Withdraws `obligations`, added in `0.1.0-alpha.5`.** `emit()` no longer accepts it,
+`InvalidObligationsError` and `OBLIGATION_LIMITS` are gone from `commitrail/postgres`, and the
+outbox migration that added the column is no longer applied.
+
+`0.1.0-alpha.5` promised behaviour from CommitRail that CommitRail does not implement — an event
+naming an unknown obligation was to be held rather than dropped, and nothing holds anything. A
+package that describes a server that is not there is worse than one that describes less.
+
 ## 0.1.0-alpha.5
+
+> **Withdrawn in `0.1.0-alpha.6`.** Kept here because it was published; see above.
 
 Adds `obligations` to `emit`, for the case configuration cannot express.
 

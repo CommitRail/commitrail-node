@@ -15,6 +15,18 @@ import { OUTBOX_MIGRATIONS, OUTBOX_SCHEMA_VERSION } from 'commitrail/postgres';
  * it. A comment is part of what was published: it is what somebody reads when they inspect the
  * migration that ran, and rewording it silently makes two copies of one version disagree. Adding a
  * migration means adding a line here and changing none of the others.
+ *
+ * This check exists because two of the entries below were reworded after they were released, by
+ * an editorial pass over the whole file that had no idea some of it was frozen. Every statement
+ * stayed identical and only the prose moved, so nothing that compares schemas could have objected.
+ * The hashes are what objects.
+ *
+ * They hold the reworded text rather than the original, because that is what was published and a
+ * frozen record has to say what shipped — undoing it would be the same edit pointed the other way.
+ *
+ * The list is also one shorter than `0.1.0-alpha.5`, which is otherwise exactly what this refuses.
+ * That entry belonged to a feature withdrawn days after it shipped, and keeping it would fix a
+ * column shape for a design being reconsidered.
  */
 describe('released outbox migrations', () => {
   const digest = (sql: string) => createHash('sha256').update(sql).digest('hex').slice(0, 16);
@@ -26,7 +38,6 @@ describe('released outbox migrations', () => {
       '3:6bb05f93d521a1c0',
       '4:fd31b1fa73e32eee',
       '5:2cce7b55b6e93d75',
-      '6:1c6e22a5f60063a4',
     ]);
   });
 

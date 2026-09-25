@@ -1,18 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { normalizeSubjects, type EventSubject } from './subjects.js';
-import { normalizeObligations } from './obligations.js';
-
-/**
- * Re-exported here and not from the root, unlike subjects.
- *
- * Subjects travel in the delivered envelope, so both halves of this package need them. Obligations
- * do not: they tell CommitRail what the business owes, and the envelope a destination verifies
- * does not carry them. Its canonical form is frozen — every deployed verifier recomputes those
- * exact bytes — so a field cannot be added to it without a new signature version anyway.
- *
- * Producing is what names an obligation, so producing is where these live.
- */
-export { InvalidObligationsError, OBLIGATION_LIMITS } from './obligations.js';
 
 /** Registered globally by description, so every copy of this package agrees on it. */
 const CONFLICTING_EVENT_BRAND = Symbol.for('commitrail.EventIdConflictError');
@@ -82,21 +69,6 @@ export interface EmitEvent<TData = unknown> {
    * duplicates are dropped; order carries no meaning.
    */
   subjects?: EventSubject[];
-
-  /**
-   * What your business owes because this happened, by name.
-   *
-   * Usually omitted. Which events create which obligations is declared once for the application,
-   * so the ordinary case needs nothing here — this is for a duty that depends on what is in the
-   * row rather than on the event's type, which no rule about types can express.
-   *
-   * Naming one here is the stronger of the two statements, because it commits with the business
-   * fact: nothing was inferred afterwards, this row says the business owed it.
-   *
-   * Names come from the vocabulary your rail declares. An event naming one it does not know is
-   * held rather than dropped, and reported with the name it gave.
-   */
-  obligations?: string[];
 }
 
 /**
@@ -195,24 +167,6 @@ CREATE TABLE IF NOT EXISTS commitrail.outbox_schema (
 ALTER TABLE commitrail.outbox_events ADD COLUMN IF NOT EXISTS ordering_key TEXT;
 `,
   },
-  {
-    version: 6,
-    sql: `
--- What the business owes because this event happened, named by the event itself.
---
--- Most rails declare this once in configuration and leave the column null. Naming it here is for
--- the duty configuration cannot express — one that depends on what is in the row rather than on
--- the event's type — and it is the stronger statement, because it is written inside the same
--- transaction as the business fact.
---
--- TEXT[] rather than JSONB: this is a set of names, and an array is what both a person reading
--- the table and a query filtering it expect.
---
--- Added by this migration rather than declared in the original CREATE TABLE, so a fresh install
--- and an upgraded one have the same column order and not merely the same columns.
-ALTER TABLE commitrail.outbox_events ADD COLUMN IF NOT EXISTS obligations TEXT[];
-`,
-  },
 ];
 
 /** The newest schema this package knows how to write. */
@@ -260,9 +214,8 @@ export const OUTBOX_SCHEMA_SQL = OUTBOX_MIGRATIONS.map((m) =>
 const INSERT = `
 INSERT INTO commitrail.outbox_events
     (event_id, event_type, event_version, payload, occurred_at, correlation_id, causation_id, subjects,
-     ordering_key, obligations)
-VALUES ($1::uuid, $2, $3, $4::jsonb, COALESCE($5::timestamptz, now()), $6, $7, $8::jsonb, $9,
-        $10::text[])
+     ordering_key)
+VALUES ($1::uuid, $2, $3, $4::jsonb, COALESCE($5::timestamptz, now()), $6, $7, $8::jsonb, $9)
 ON CONFLICT (event_id) DO NOTHING
 `;
 
@@ -272,8 +225,7 @@ ON CONFLICT (event_id) DO NOTHING
  * Every producer-controlled field participates, because every one of them changes what the event
  * means, where it routes, or how it is ordered:
  *
- *     event_type, event_version, payload, correlation_id, causation_id, subjects, ordering_key,
- *     obligations
+ *     event_type, event_version, payload, correlation_id, causation_id, subjects, ordering_key
  *     occurred_at — only when the caller supplied one, since a default differs per row
  *
  * Database-assigned fields never participate: `source_sequence` and `transaction_id` are issued
@@ -308,8 +260,8 @@ FROM commitrail.outbox_events e
 WHERE e.event_id = $1::uuid
   AND (
     (e.event_type, e.event_version, e.payload, e.correlation_id, e.causation_id, e.subjects,
-     e.ordering_key, e.obligations)
-      IS DISTINCT FROM ($2, $3::integer, $4::jsonb, $6, $7, $8::jsonb, $9, $10::text[])
+     e.ordering_key)
+      IS DISTINCT FROM ($2, $3::integer, $4::jsonb, $6, $7, $8::jsonb, $9)
     OR ($5::timestamptz IS NOT NULL AND e.occurred_at IS DISTINCT FROM $5::timestamptz)
   )
 `;
@@ -413,9 +365,6 @@ export async function emit<TData>(writer: OutboxWriter, event: EmitEvent<TData>)
   const supplied = event.eventId !== undefined;
   const eventId = event.eventId ?? randomUUID();
   const subjects = normalizeSubjects(event.subjects);
-  // Normalised for the same reason subjects are, and compared in the same form: a producer that
-  // retried with its obligations in a different order named the same duties.
-  const obligations = normalizeObligations(event.obligations);
 
   // Normalised before it is written AND before it is compared, so the two are the same value.
   // Comparing raw caller input against a canonicalised row would report a producer that reordered
@@ -430,7 +379,6 @@ export async function emit<TData>(writer: OutboxWriter, event: EmitEvent<TData>)
     event.causationId ?? null,
     subjects === null ? null : JSON.stringify(subjects),
     event.orderingKey ?? null,
-    obligations,
   ];
 
   const inserted = affectedRows(await writer.query(INSERT, params));
