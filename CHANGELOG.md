@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.1.0-alpha.8
+
+**Adds `commitrail/publish`**, for applications whose events were never rows in a PostgreSQL
+database CommitRail can reach.
+
+```ts
+import { createPublisher } from 'commitrail/publish';
+
+const publisher = createPublisher({ credential: process.env.COMMITRAIL_TOKEN! });
+
+await publisher.publish({ type: 'order.paid', data: { orderId: 'ord_123' } });
+```
+
+The credential is issued by CommitRail for one source, so a publisher sends everything to that
+source and there is no way to name another. Hold the publisher rather than creating one per event:
+it exchanges the credential for a short-lived token and refreshes it before it expires.
+
+**Nothing about `commitrail/postgres` changes, and it remains the stronger option.** Writing the
+event inside your own transaction gives you two things publishing cannot:
+
+- CommitRail can tell you when something is missing, because it re-reads your outbox and checks
+  itself against it. A publish whose HTTP call was lost leaves nothing behind to check.
+- Creating the event does not depend on CommitRail being reachable. Publishing puts our
+  availability into your request path.
+
+Use `commitrail/publish` when your events do not already come from a PostgreSQL transaction.
+
+**Retries are handled and are safe.** The publisher generates one event id per call and reuses it
+for every attempt, so a timeout it retries is recognised as the same event rather than becoming a
+duplicate. Supply an `eventId` yourself only if you need that to survive your process dying between
+attempts — and if you need that guarantee always, `commitrail/postgres` is the honest answer.
+
+`PublishFailedError` and `CredentialRejectedError` are distinct on purpose: the first means the
+outcome is unknown and retrying with the same id is correct, and the second means no retry will
+help. Both carry a brand and a `static is()`, like the errors before them.
+
+> There is no `0.1.0-alpha.7`. It was tagged and withdrawn before publication; nothing was ever
+> installable under that version.
+
 ## 0.1.0-alpha.6
 
 **Withdraws `obligations`, added in `0.1.0-alpha.5`.** `emit()` no longer accepts it,
