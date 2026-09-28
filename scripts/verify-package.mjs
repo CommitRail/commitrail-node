@@ -10,7 +10,7 @@
  * So: pack the tarball npm would publish, install it into throwaway projects, and use it the
  * four ways a customer can.
  *
- *   1. ESM      import  "commitrail", "commitrail/postgres", "commitrail/webhooks"
+ *   1. ESM      import  "commitrail", "commitrail/postgres", "commitrail/webhooks", "commitrail/publish"
  *   2. CommonJS require the same three
  *   3. TypeScript  types resolve for every entry point, under node16 and under node10
  *   4. Both at once — the dual-package hazard, checked rather than assumed
@@ -85,6 +85,8 @@ try {
       'dist/cjs/postgres.js',
       'dist/esm/webhooks.js',
       'dist/cjs/webhooks.js',
+      'dist/esm/publish.js',
+      'dist/cjs/publish.js',
     ];
     const missing = required.filter((f) => !listed.includes(f));
     if (missing.length > 0) throw new Error(`missing from tarball: ${missing.join(', ')}`);
@@ -114,6 +116,9 @@ try {
   assert.equal(typeof postgres.EventIdConflictError, 'function');
   assert.equal(typeof webhooks.verifyRequest, 'function');
   assert.equal(typeof webhooks.InvalidDeliveryError, 'function');
+  assert.equal(typeof publish.createPublisher, 'function');
+  assert.equal(typeof publish.PublishFailedError, 'function');
+  assert.equal(typeof publish.CredentialRejectedError, 'function');
 
   // The root is what a CUSTOMER needs. CommitRail signs from its own private implementation, so
   // an export appearing here means the public surface grew without anybody deciding to grow it.
@@ -124,7 +129,12 @@ try {
   // Each subpath names one side, and neither pretends to be the default.
   assert.equal(protocol.verifyRequest, undefined, 'root must not re-export the receiver');
   assert.equal(protocol.emit, undefined, 'root must not re-export the producer');
+  assert.equal(protocol.createPublisher, undefined, 'root must not re-export the publisher');
   assert.equal(postgres.SUBJECT_LIMITS, undefined, '/postgres must not re-export the protocol');
+  // The two producing sides are alternatives, not a pair to mix. A customer picking one should
+  // not find the other in the same import and assume they compose.
+  assert.equal(publish.emit, undefined, '/publish must not re-export the transactional producer');
+  assert.equal(postgres.createPublisher, undefined, '/postgres must not re-export the publisher');
 `;
 
   console.log('\nESM consumer');
@@ -136,12 +146,13 @@ try {
 import * as protocol from 'commitrail';
 import * as postgres from 'commitrail/postgres';
 import * as webhooks from 'commitrail/webhooks';
+import * as publish from 'commitrail/publish';
 ${ASSERTIONS}
 console.log('esm ok');
 `,
     },
   );
-  check('import works for all three entry points', () => run('node', ['index.js'], esm));
+  check('import works for every entry point', () => run('node', ['index.js'], esm));
 
   console.log('\nCommonJS consumer');
   const cjs = project(
@@ -152,12 +163,13 @@ console.log('esm ok');
 const protocol = require('commitrail');
 const postgres = require('commitrail/postgres');
 const webhooks = require('commitrail/webhooks');
+const publish = require('commitrail/publish');
 ${ASSERTIONS}
 console.log('cjs ok');
 `,
     },
   );
-  check('require works for all three entry points', () => run('node', ['index.js'], cjs));
+  check('require works for every entry point', () => run('node', ['index.js'], cjs));
 
   console.log('\nTypeScript consumer');
   const types = project(
@@ -167,6 +179,7 @@ console.log('cjs ok');
       'src/node16.ts': `import { SPEC_VERSION, HEADERS, verifySignatureHeader, SUBJECT_LIMITS, type CommitRailEvent, type EventSubject } from 'commitrail';
 import { emit, OUTBOX_SCHEMA_SQL, type OutboxWriter, EventIdConflictError } from 'commitrail/postgres';
 import { verifyRequest, InvalidDeliveryError, type InvalidDeliveryCode } from 'commitrail/webhooks';
+import { createPublisher, PublishFailedError, type PublishResult } from 'commitrail/publish';
 
 const version: '1' = SPEC_VERSION;
 const sql: string = OUTBOX_SCHEMA_SQL;
@@ -176,13 +189,18 @@ declare const event: CommitRailEvent<{ orderId: string }>;
 declare const subject: EventSubject;
 declare const code: InvalidDeliveryCode;
 
+declare const result: PublishResult;
+
 export const uses = [
   verifySignatureHeader,
   emit,
   verifyRequest,
   InvalidDeliveryError,
   EventIdConflictError,
+  createPublisher,
+  PublishFailedError,
 ] as const;
+export const duplicate: boolean = result.duplicate;
 export const orderId: string = event.data.orderId;
 export const rest = { version, sql, writer, HEADERS, maxSubjects, subject, code };
 `,
@@ -217,7 +235,8 @@ export const rest = { version, sql, writer, HEADERS, maxSubjects, subject, code 
       `import { SPEC_VERSION } from 'commitrail';
 import { emit } from 'commitrail/postgres';
 import { verifyRequest } from 'commitrail/webhooks';
-export const uses = [SPEC_VERSION, emit, verifyRequest] as const;
+import { createPublisher } from 'commitrail/publish';
+export const uses = [SPEC_VERSION, emit, verifyRequest, createPublisher] as const;
 `,
     );
     run(

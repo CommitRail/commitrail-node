@@ -1,7 +1,7 @@
 {
   "name": "commitrail",
   "version": "0.1.0-alpha.6",
-  "description": "CommitRail SDK — prerelease.",
+  "description": "CommitRail SDK \u2014 prerelease.",
   "license": "Apache-2.0",
   "author": "Syrenox Systems Ltd",
   "repository": {
@@ -62,6 +62,16 @@
         "default": "./dist/cjs/webhooks.js"
       }
     },
+    "./publish": {
+      "import": {
+        "types": "./dist/esm/publish.d.ts",
+        "default": "./dist/esm/publish.js"
+      },
+      "require": {
+        "types": "./dist/cjs/publish.d.ts",
+        "default": "./dist/cjs/publish.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "main": "./dist/cjs/index.js",
@@ -73,6 +83,9 @@
       ],
       "webhooks": [
         "./dist/cjs/webhooks.d.ts"
+      ],
+      "publish": [
+        "./dist/cjs/publish.d.ts"
       ]
     }
   },
